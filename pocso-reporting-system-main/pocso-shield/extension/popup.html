@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>POCSO Shield</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      width: 300px;
+      padding: 0;
+      background: #fff;
+    }
+
+    .header {
+      background: #dc2626;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-text h1 { font-size: 15px; font-weight: 700; color: #fff; }
+    .header-text p  { font-size: 11px; color: rgba(255,255,255,0.8); margin-top: 1px; }
+
+    .active-badge {
+      margin-left: auto;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 10px;
+    }
+
+    .body { padding: 16px 18px; }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 13px;
+    }
+    .stat-row:last-of-type { border-bottom: none; }
+    .stat-label { color: #6b7280; }
+    .stat-value { font-weight: 600; color: #111827; font-family: monospace; font-size: 12px; }
+    .stat-value.green { color: #16a34a; }
+    .stat-value.red   { color: #dc2626; }
+
+    .divider { border: none; border-top: 1px solid #f3f4f6; margin: 12px 0; }
+
+    .url-check {
+      margin-bottom: 14px;
+    }
+
+    .url-check label { font-size: 12px; font-weight: 600; color: #374151; display: block; margin-bottom: 5px; }
+
+    .url-row { display: flex; gap: 6px; }
+
+    .url-input {
+      flex: 1; padding: 7px 10px; border: 1px solid #d1d5db;
+      border-radius: 6px; font-size: 12px; outline: none; color: #111827;
+    }
+
+    .check-btn {
+      padding: 7px 12px; background: #111827; color: #fff;
+      border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500;
+    }
+
+    .result-box {
+      margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 12px;
+    }
+    .result-box.safe    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .result-box.blocked { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+    .refresh-btn {
+      width: 100%; padding: 9px 0; font-size: 12px; font-weight: 500;
+      background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+      cursor: pointer; color: #374151; margin-top: 4px;
+    }
+    .refresh-btn:hover { background: #f3f4f6; }
+
+    .footer {
+      padding: 10px 18px;
+      border-top: 1px solid #f3f4f6;
+      font-size: 10px;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <path d="M14 2L3 7v8c0 5.5 4.6 10.7 11 12.4C20.4 25.7 25 20.5 25 15V7L14 2z" fill="rgba(255,255,255,0.2)" stroke="#fff" stroke-width="1.5"/>
+      <path d="M9.5 14l3.5 3.5 6-6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="header-text">
+      <h1>POCSO Shield</h1>
+      <p>Child protection active</p>
+    </div>
+    <div class="active-badge" id="status-badge">Active</div>
+  </div>
+
+  <div class="body">
+
+    <!-- Status stats -->
+    <div class="stat-row">
+      <span class="stat-label">Blocked domains</span>
+      <span class="stat-value green" id="stat-count">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Blocklist root</span>
+      <span class="stat-value" id="stat-root">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Last updated</span>
+      <span class="stat-value" id="stat-updated">—</span>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Manual URL check -->
+    <div class="url-check">
+      <label>Check a URL</label>
+      <div class="url-row">
+        <input class="url-input" id="url-input" type="url" placeholder="https://example.com" />
+        <button class="check-btn" id="check-btn">Check</button>
+      </div>
+      <div class="result-box" id="check-result" style="display:none"></div>
+    </div>
+
+    <button class="refresh-btn" id="refresh-btn">↻ Refresh blocklist now</button>
+  </div>
+
+  <div class="footer">
+    POCSO Act 2012 · National helpline: 1098
+  </div>
+
+  <script>
+    // Load status from background
+    chrome.runtime.sendMessage({ type: "GET_STATUS" }, (resp) => {
+      if (!resp) return;
+      document.getElementById("stat-count").textContent   = resp.count || "0";
+      document.getElementById("stat-root").textContent    = resp.root ? resp.root.slice(0, 14) + "..." : "—";
+      document.getElementById("stat-updated").textContent = resp.lastUpdated || "Never";
+    });
+
+    // URL check
+    document.getElementById("check-btn").addEventListener("click", () => {
+      const url = document.getElementById("url-input").value.trim();
+      if (!url) return;
+      chrome.runtime.sendMessage({ type: "CHECK_URL", url }, (resp) => {
+        const box = document.getElementById("check-result");
+        box.style.display = "block";
+        if (resp.blocked) {
+          box.className = "result-box blocked";
+          box.textContent = `⚠ Blocked — ${resp.domain} is on the POCSO Shield blocklist`;
+        } else {
+          box.className = "result-box safe";
+          box.textContent = `✓ Not blocked — ${resp.domain || url} is not on the blocklist`;
+        }
+      });
+    });
+
+    // Refresh
+    document.getElementById("refresh-btn").addEventListener("click", () => {
+      const btn = document.getElementById("refresh-btn");
+      btn.textContent = "Refreshing...";
+      btn.disabled    = true;
+      chrome.runtime.sendMessage({ type: "FORCE_REFRESH" }, () => {
+        chrome.runtime.sendMessage({ type: "GET_STATUS" }, (resp) => {
+          if (resp) {
+            document.getElementById("stat-count").textContent   = resp.count || "0";
+            document.getElementById("stat-updated").textContent = resp.lastUpdated || "Just now";
+          }
+          btn.textContent = "↻ Refresh blocklist now";
+          btn.disabled    = false;
+        });
+      });
+    });
+
+    // Enter key on URL input
+    document.getElementById("url-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("check-btn").click();
+    });
+  </script>
+</body>
+</html>
